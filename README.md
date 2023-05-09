@@ -5,11 +5,12 @@ This repository contains a set of scripts that are commonly used during detector
 To make load curves, PT plots, and Psat as a function of T with bolometer fit:
 
 >> Run the bash script: "./find_G_all"
+
 If this doesn't work, run "chmod 777 find_G_all" to enable it as a bash script.
 
 This script loops "sk_G_analysis.py" over rows and cols and biases.
-If you want to fix beta value at 2, edit "find_G_all" with your favorite text editor and refer to "sk_G_analysis_beta2.py" (line 10).
-However, be careful to save the previous plots in a separated folder before doing this, otherwise the script will overwrite them.
+change RUN and DATE
+If you want to fix beta value at 2, edit "sk " with your favorite text editor 
 
 Note: you have to move the data in the same folder as the script.
 - For that, just copy the full folder DATE, where DATE is the date at which you took data (yyyymmdd format)
