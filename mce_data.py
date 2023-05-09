@@ -6,6 +6,7 @@ from os import stat
 #
 # MCE Flatfile handling
 #
+# Cheng: changed MAX_READ_SIZE to 4e9 to fully load 1 hr timestream - 02/11/2019
 
 
 # This is what an MCE looks like.
@@ -14,7 +15,8 @@ MCE_COL = 8
 MCE_DWORD = 4
 
 # This block read maximum (bytes) is to keep memory usage reasonable.
-MAX_READ_SIZE = int(1e9)
+#MAX_READ_SIZE = int(1e9)
+MAX_READ_SIZE = int(5e10)
 
 class HeaderFormat:
     """
@@ -85,9 +87,8 @@ deprecation_warnings = True
 def deprecate_arg(new_val, kwargs, new_arg, old_arg):
     # Note this pops the bad value from kwargs
     if old_arg in kwargs:
-        if deprecation_warnings:
-            print 'Use of argument "%s" is deprecated, the new word is "%s".' % \
-                (old_arg, new_arg)
+       # if deprecation_warnings:
+           # print ('Use of argument %s is deprecated, the new word is "%s".'%old_arg %new_arg)
         return kwargs.pop(old_arg)
     return new_val
 
@@ -157,16 +158,16 @@ def _rangify(start, count, n, name='items'):
     if start < 0:
         start = n + start
     if start > n:
-        print 'Warning: %s requested at %i, beyond available %s.' %\
-            (name, start, name)
+   #     print 'Warning: %s requested at %i, beyond available %s.' %\
+           # (name, start, name)
         start = n
     if count == None:
         count = n - start
     if count < 0:
         count = n - start + count
     if start + count > n:
-        print 'Warning: %i %s requested, exceeding available %s.' %\
-            (count, name, name)
+       # print 'Warning: %i %s requested, exceeding available %s.' %\
+        #    (count, name, name)
         count = n - start
     return start, count
         
@@ -264,12 +265,12 @@ class SmallMCEFile:
         vals = [ self._rfMCEParam('rc%i'%r, param) for r in rcs ]
         for r,v in zip(rcs[1:], vals[1:]):
             if v == None and vals[0] != None:
-                print 'Warning: param \'%s\' not found on rc%i.' % \
-                    (param, r)
+               # print 'Warning: param \'%s\' not found on rc%i.' % \
+                #    (param, r)
                 continue
             if vals[0] != v:
-                print 'Warning: param \'%s\' is not consistent accross RCs.' % \
-                    (param)
+              #  print 'Warning: param \'%s\' is not consistent accross RCs.' % \
+               #     (param)
                 break
         return vals[0]
 
@@ -282,11 +283,11 @@ class SmallMCEFile:
         """
         if self.runfile == None:
             if self.runfilename == False:
-                raise RuntimeError, 'Can\'t determine content params without runfile.'
+                raise RuntimeError('Can\'t determine content params without runfile.')
             self._ReadRunfile()
         # In a pinch we could get these params from the runfile.
         if self.size_ro == 0:
-            raise RuntimeError, 'Can\'t determine content params without data file.'
+            raise RuntimeError ('Can\'t determine content params without data file.')
         # Switch on firmware revision to determine 'num_cols_reported' support
         fw_rev = self._GetRCAItem('fw_rev')
         if fw_rev >= 0x5000001:
@@ -318,14 +319,14 @@ class SmallMCEFile:
         
         # Check 1: Warn if count_rc does not fit evenly into count_cc
         if count_cc % count_rc != 0:
-            print 'Warning: imperfect RC->CC frame packing (%i->%i).' % \
-                (count_rc, count_cc)
+            print ('Warning: imperfect RC->CC frame packing (%i->%i).' % \
+                (count_rc, count_cc))
 
         # Check 2: Warn if decimation/packing is such that samples are
         #     not evenly spaced in time.
         if count_rc != count_cc:
             if count_rc * self.divid != count_cc:
-                print 'Warning: bizarro uneven RC->CC frame packing.'
+                print ('Warning: bizarro uneven RC->CC frame packing.')
         
         # Determine the final data count, per channel.  Any times
         # that are not represented in all channels are lost.
@@ -344,7 +345,7 @@ class SmallMCEFile:
         Sets members n_ro, n_rc, size_ro, frame_bytes, rc_step.
         """
         if self.header == None:
-            self.header = self._ReadHeader()
+            self._ReadHeader()
         # Compute frame size from header data.
         self.n_rc = self.header['_rc_present'].count(True)
         # Payload size (per-RC) is the product of two numbers:
@@ -365,7 +366,7 @@ class SmallMCEFile:
             file_size = stat(self.filename).st_size
             self.n_ro = file_size / self.frame_bytes
             if file_size % self.frame_bytes != 0:
-                print 'Warning: partial frame at end of file.'
+                print ('Warning: partial frame at end of file.')
 
     def _UpdateNFrames(self):
         # Partial GetInfo... no error checking.
@@ -378,35 +379,27 @@ class SmallMCEFile:
     def _ReadHeader(self, offset=None, head_binary=None):
         """
         Read the frame header at file position 'offset' (bytes),
-        determine its version, and return its data.
-        20170405 JRH: Changed to return header instead of store
-					  globally.  Added aux_channel key.
+        determine its version, and store its data in self.header.
         """
         # It's a V6, or maybe a V7.
         format = HeaderFormat()
-        if head_binary is None:
-            if self.filename is None:
-                raise RuntimeError, 'Can\'t read header without data file.'
+        if head_binary == None:
+            if self.filename == None:
+                raise RuntimeError ('Can\'t read header without data file.')
             fin = open(self.filename)
-            if offset is not None:
+            if offset != None:
                 fin.seek(offset)
             head_binary = numpy.fromfile(file=fin, dtype='<i4',
                                          count=format.header_size)
         # Lookup each offset and store
-        header = {}
+        self.header = {}
         for k in format.offsets:
-            header[k] = head_binary[format.offsets[k]]
+            self.header[k] = head_binary[format.offsets[k]]
         # Provide some additional keys to help determine frame size
-        header['_rc_present'] = [(header['status'] & (1 << 10+i))!=0 \
+        self.header['_rc_present'] = [(self.header['status'] & (1 << 10+i))!=0 \
                                           for i in range(MCE_RC)]
-        header['_header_size'] = format.header_size
-        header['_footer_size'] = format.footer_size
-        
-        # Extract the frame status bit corresponding to the 4th fiber
-        # input, used as an aux input channel
-        header['aux_channel'] = (header['status'] >> 9) & 1
-        
-        return header
+        self.header['_header_size'] = format.header_size
+        self.header['_footer_size'] = format.footer_size
 
     def _ReadRunfile(self):
         """
@@ -432,22 +425,22 @@ class SmallMCEFile:
         # Check max frame size
         if count * self.frame_bytes > MAX_READ_SIZE:
             # Users: override this by changing the value of mce_data.MAX_READ_SIZE
-            print 'Warning: maximum read of %i bytes exceeded; limiting.' % \
-                MAX_READ_SIZE
+            print ('Warning: maximum read of %i bytes exceeded; limiting.' % \
+                MAX_READ_SIZE)
             count = MAX_READ_SIZE / self.frame_bytes
 
         # Open, seek, read.
-        f_dwords = self.frame_bytes / MCE_DWORD
+        f_dwords = (self.frame_bytes / MCE_DWORD)
         fin = open(self.filename)
         fin.seek(start*self.frame_bytes)
-        a = numpy.fromfile(file=fin, dtype='<i4', count=count*f_dwords)
-        n_frames = len(a) / f_dwords
+        a = numpy.fromfile(file=fin, dtype='<i4', count=int(count*f_dwords))
+        n_frames = (len(a) / f_dwords)
         if len(a) != count*f_dwords:
-            print 'Warning: read problem, only %i of %i requested frames were read.'% \
-                  (len(a)/f_dwords, count)
+            print ('Warning: read problem, only %i of %i requested frames were read.'% \
+                  (len(a)/f_dwords, count))
         # Trim and reshape
-        a = a[:n_frames*f_dwords]
-        a.shape = (n_frames, f_dwords)
+        a = a[:int(n_frames*f_dwords)]
+        a.shape = (int(n_frames), int(f_dwords))
         if raw_frames:
             # Return all data (i.e. including header and checksum)
             return a
@@ -516,7 +509,7 @@ class SmallMCEFile:
         # Reshape data_in to (cc_frame, cc_row, cc_col) so we can work
         # with each RC's data one-by-one
         cc_cols = self.n_rc * self.rc_step
-        data_in.shape = (n_ro, n_chan / cc_cols, cc_cols)
+        data_in.shape = (n_ro, int(n_chan / cc_cols), cc_cols)
 
         # Probably should leave the type the same, oops.
         if dtype == None:
@@ -525,7 +518,7 @@ class SmallMCEFile:
         # Short-hand some critical sizes and declare output data array
         f = self.n_cols*self.n_rows          # RC frame size
         p = self.size_ro / f                 # CC/RC packing multiplier
-        data = numpy.zeros((self.n_rows, self.n_rc, self.n_cols, n_ro * p),
+        data = numpy.zeros((self.n_rows, self.n_rc, self.n_cols, int(n_ro * p)),
                            dtype=dtype)
 
         if n_ro == 0:
@@ -536,7 +529,7 @@ class SmallMCEFile:
             # Get data from this rc, reshape to (cc_frame, cc_idx)
             x = data_in[:,:,self.rc_step*rci:self.rc_step*(rci+1)].reshape(n_ro, -1)
             # Truncate partial data and reshape to RC frames
-            x = x[:,0:f*p].reshape(-1, self.n_rows, self.n_cols)
+            x = x[:,0:int(f*p)].reshape(-1, self.n_rows, self.n_cols)
             # Transpose to (rc_row, rc_col, rc_time) and store
             data[:,rci,:,:] = x.transpose((1,2,0))
         # Just return with one space, one time index.
@@ -569,7 +562,7 @@ class SmallMCEFile:
              field=None, fields=None, row_col=False,
              raw_frames=False, cc_indices=False,
              n_frames=None, unfilter=False, unwrap=False,
-             all_headers=False, **kwargs):
+             **kwargs):
         """
         Read MCE data, and optionally extract the MCE signals.
 
@@ -600,9 +593,6 @@ class SmallMCEFile:
         unwrap      If True, remove effects of digital windowing to restore
                     full dynamic range of signal.  (Only works if fields are
                     extracted.)
-        all_headers If True, returns the headers of all frames
-        
-        20170405 JRH: Added all_headers
         """
         # Deprecated args...
         extract = deprecate_arg(extract, kwargs, 'extract', 'do_extract')
@@ -613,11 +603,9 @@ class SmallMCEFile:
             raise TypeError("%s: got an expected keyword argument '%s'" % \
                                 (sys._getframe().f_code.co_name, kwargs.keys()[0]))
         
-        frames_in = self.ReadRaw(count=count, start=start, raw_frames=True)
-        
         # When raw_frames is passed, count and start are passed directly to ReadRaw.
         if raw_frames:
-            return frames_in
+            return self.ReadRaw(count=count, start=start, raw_frames=True)
 
         # We can only do this if we have a runfile
         if self.n_frames == 0:
@@ -647,15 +635,13 @@ class SmallMCEFile:
             cc_start = start / pack_factor
             cc_count = (count + start + pack_factor-1) / pack_factor - cc_start
 
-        # Split the data from the headers
-        ho = self.header['_header_size']
-        data_in = frames_in[:,ho:ho+self.size_ro*self.n_rc]
-        headers_in = frames_in[:,0:ho]
-     
+        # Get detector data as (n_ro x (size_ro*n_rc)) array
+        data_in = self.ReadRaw(count=cc_count, start=cc_start)
+
         # Check data mode for processing instructions
         dm_data = MCE_data_modes.get('%i'%self.data_mode)
         if dm_data == None:
-            print 'Warning: unimplemented data mode %i, treating as 0.'%self.data_mode
+            print ('Warning: unimplemented data mode %i, treating as 0.'%self.data_mode)
             dm_data = MCE_data_modes['0']
 
         # Handle data packing
@@ -670,15 +656,13 @@ class SmallMCEFile:
             data = self._ExtractRect(data_in)
             # Trim to caller's spec
             offset = start - cc_start * pack_factor
-            data = data[:, offset:offset+count]
+            data = data[:, int(offset):int(offset+count)]
 
         # Create the output object
         data_out = MCEData()
         data_out.source = self.filename
         data_out.n_frames = data.shape[1]
         data_out.header = self.header
-        if all_headers:
-			data_out.headers = [self._ReadHeader(head_binary=frames_in[h]) for h in range(start, count)]
 
         # Unravel the field= vs. fields=[...] logic
         if field == None:
@@ -715,8 +699,8 @@ class SmallMCEFile:
                 elif unfilter == False:
                     pass
                 else:
-                    raise ValueError, \
-                        "unexpected value for unfilter= argument to MCEFile.Read"
+                    raise ValueError \
+                        ("unexpected value for unfilter= argument to MCEFile.Read")
             if data_out.data_is_dict:
                 data_out.data[f] = new_data
             else:
@@ -767,7 +751,8 @@ class MCERunfile:
                 block_data = {}
             elif block_name == None:
                 if data == None or data == '':
-                    if self.data.has_key(key):
+               #     if self.data.has_key(key):
+                    if key in self.data:
                         raise BadRunfile('duplicate block \'%s\''%key)
                     block_name = key
                 else:
@@ -777,7 +762,7 @@ class MCERunfile:
         return self.data
     
     def Item(self, block, key, array=True, type='string'):
-        if not self.data.has_key(block) or not self.data[block].has_key(key):
+        if block not in self.data or key not in self.data[block]:
             return None
         data = self.data[block][key]
         if type=='float':
@@ -789,7 +774,7 @@ class MCERunfile:
             if not array and len(f) <= 1: return f[0]
             return f
         if type!='string':
-            print 'Unknown type "%s", returning string.' % type
+            print ('Unknown type "%s", returning string.' % type)
         if array:
             return data.split()
         return data
@@ -897,8 +882,8 @@ def unwrap(*args, **kwargs):
     This in a alias for unwrap_array, which you should use now.
     """
     if deprecation_warnings:
-        print 'Use of "unwrap" function is deprecated, the new name '\
-            ' is "unwrap_array".'
+        print ('Use of "unwrap" function is deprecated, the new name '\
+            ' is "unwrap_array".')
     return unwrap_array(*args, **kwargs)
 
 #
@@ -945,7 +930,7 @@ class MCEButterworth(MCEFilter):
         return H
 
     def spectrum(self, *args, **kwargs):
-        print '*** please use "transfer" method instead of "spectrum" method.'
+        print ('*** please use "transfer" method instead of "spectrum" method.')
         return self.transfer(*args, **kwargs)
 
     def gain(self):
@@ -1043,8 +1028,8 @@ class MCEButterworth(MCEFilter):
             params = fparams
         # Did this all work out?
         if params == None or len(params) != 6:
-            raise ValueError, "Invalid filter parameters for ftype='%i'" %\
-                ftype
+            raise ValueError ("Invalid filter parameters for ftype='%i'" %\
+                ftype)
         return cls(params)
 
     @classmethod

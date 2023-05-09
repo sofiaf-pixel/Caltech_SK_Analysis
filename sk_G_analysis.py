@@ -19,17 +19,21 @@ import ba40_ModuleMapping
 from Gtemplists import gettemplists
 templists = gettemplists()
 
-RUN = 'L9'
-rnpsat = 0.040
+#RUN = 'L1'
+#DATE='20230302'
 
-#DATE = '20190730'
-DATE='20230302'
+RUN=sys.argv[1]
+DATE=sys.argv[2]
+
+fit_beta=False
+
+rnpsat = 0.040
 templist = templists[DATE]
 
 def GTcModel(T,G,Tc,beta):
 	return G/(beta+1)*(Tc**(beta+1)-T**(beta+1))/Tc**beta
 
-def GTcModel2(T,G,Tc,beta=2):
+def GTcModel2(T,G,Tc):
 	#beta = 2.
 	return G/(2+1)*(Tc**(2+1)-T**(2+1))/Tc**2
 
@@ -53,17 +57,20 @@ def main():
 		# Loading data
 		#===================================#
 		in_path  = '%s/'%(DATE)
-		#filename = 'LC_G_FPU_'+str(temp)+'mK_datamode1_run1'
 		filename = 'LC_G_sk_FPU'+str(temp)+'mK_datamode1_source1'
 		out_path_main = 'output/%s/'%(DATE)
 		if not os.path.isdir(out_path_main):
-                        os.makedirs(out_path_main)
-		out_path = out_path_main + filename + '/'
-		if not os.path.isdir(out_path):
-			os.makedirs(out_path)
-		out_Gplot = out_path_main + '%s_Gplot/'%(RUN)
+			os.makedirs(out_path_main)
+		#out_path = out_path_main + filename + '/'
+		#if not os.path.isdir(out_path):
+			#os.makedirs(out_path)
+		out_Gplot = out_path_main + 'L%s_Gplot/'%(RUN)
 		if not os.path.isdir(out_Gplot):
-                        os.makedirs(out_Gplot)
+			os.makedirs(out_Gplot)
+
+		if fit_beta==True:
+			if not os.path.isdir(out_Gplot + 'Fit_beta/'):
+				os.makedirs(out_Gplot + 'Fit_beta/')
 
 		datafn = in_path + filename + '/' + filename
 		#print(datafn)
@@ -87,13 +94,11 @@ def main():
 		yCalib =  1.0*f.Read(row_col=True,unfilter='DC').data*calib["FB_CAL"][1]
 
 		nr,nc,nt = y.shape
-		# print(nc,nr)
-		# sys.exit()
-		rows = np.zeros((nc,nr),dtype=np.int)
-		cols = np.zeros((nc,nr),dtype=np.int)
+		rows = np.zeros((nc,nr),dtype=np.int64)
+		cols = np.zeros((nc,nr),dtype=np.int64)
 
-		col_i=int(sys.argv[2])
-		row_i=int(sys.argv[1])
+		row_i=int(sys.argv[3])
+		col_i=int(sys.argv[4])
 
 		Gfn = 'sk_G_'+str(DATE)+'_row'+str(row_i)+'_col'+str(col_i)
 
@@ -107,8 +112,8 @@ def main():
 			for row in [row_i]:
 				fitrange = {}
 
-				fitrange["rnti_low"] = 5000.00
-				fitrange["rnti_hgh"] = 5500.00
+				fitrange["rnti_low"] = 6000.00
+				fitrange["rnti_hgh"] = 7000.00
 				fitrange["sc_low"] = 0.00
 				fitrange["sc_hgh"] = 50.00
 
@@ -140,25 +145,20 @@ def main():
 	rnpsathighlist = [0]*len(templist)
 	psatlist = [0]*len(templist)
 	rntilist = [0]*len(templist)
-	# GTdata = {}
-	DetInfos = {}
-	#for col in range (16):
-	for col in [col_i]:
-		#for row in range(41):
-		for row in [row_i]:
 
+	DetInfos = {}
+
+	for col in [col_i]:
+		for row in [row_i]:
 
 			dinfos = {}
 			#im, detcol,detrow,detpol = ba40_ModuleMapping.mce2det(col,row)
 			im, detcol,detrow,detpol = 0, 0, 0, 0
 			for itt in range(len(templist)):
-				#rnpsatlowlist[itt] = prdata[str(templist[itt])+'_r'+str(row)+'c'+str(col)][4]
-				#rnpsathighlist[itt] = prdata[str(templist[itt])+'_r'+str(row)+'c'+str(col)][5]
+
 				psatlist[itt] = prdata[str(templist[itt])+'_r'+str(row)+'c'+str(col)][3]*1.00e12
 				rntilist[itt] = prdata[str(templist[itt])+'_r'+str(row)+'c'+str(col)][2]*1.00e3
-			#rnpsat = 0.5*(np.max(rnpsatlowlist) + np.min(rnpsathighlist))
-			#rnpsat = 0.075
-			#for itt in range(len(templist)):
+
 			#	lcIs = lcdata[str(templist[itt])+'_r'+str(row)+'c'+str(col)]
 			#	rr, pp, rnti, psat = lc.get_PRs(lcIs[0], lcIs[1], row, col, calib, rnpsat)
 			rnti = np.mean(rntilist)
@@ -169,7 +169,6 @@ def main():
 			psatlist_good=np.asarray(psatlist)[mask]
 			templist_good=np.asarray(templist)[mask]
 
-			#xdata_good = np.linspace(templist_good[0]-1, templist_good[-1]+1, 100)
 
 			fig = pl.figure(figsize=(20,6.5), dpi=80)
 			pl.clf()
@@ -235,203 +234,90 @@ def main():
 					rnti=np.mean(x_cut[x_cut>0.])
 
 
-			if psatlist_good[len(psatlist_good)-1]< psatlist_good[0]:
-				psatlist_good=psatlist_good[:-1]
-				templist_good=templist_good[:-1]
-
+			idx=np.argsort(templist_good)
+			templist_good_sorted=templist_good[idx]
+			psatlist_good_sorted=psatlist_good[idx]
+			psatlist_gg=[]
+			templist_gg=[]
+			for i in range (0,len(psatlist_good_sorted)-2):
+				if psatlist_good_sorted[i]>psatlist_good_sorted[i+1]:
+					psatlist_gg.append(psatlist_good_sorted[i])
+					templist_gg.append(templist_good_sorted[i])
+			psatlist_gg.append(psatlist_good_sorted[-2])
+			templist_gg.append(templist_good_sorted[-2])
+			#pl.scatter(templist_good_sorted, psatlist_good_sorted, c='y', label='before correction')
+			pl.scatter(templist_gg, psatlist_gg, c='r')
 
 			try:
-				popt, pcov = curve_fit(GTcModel, templist_good, psatlist_good)
-				#GoT=GTcModel(xdata, *popt)
-				##print('xdata:', xdata)
-				#G_450=Got(np.where(xdata>449 and xdata<451))
-				pl.plot(xdata, GTcModel(xdata, *popt), 'g--',label='fit: Gc=%5.3f, Tc=%5.3f, beta=%5.3f' % tuple(popt))
-				#histo parameters
 
-				Gc = popt[0]*1e3
-				Tc = popt[1]
-				beta = popt[2]
-				rnti = rnti
-				Psat308 = psatlist[3]
-					#G450.append(G_450*1e3)
+				if fit_beta==True:
+					popt, pcov = curve_fit(GTcModel, templist_gg, psatlist_gg)
+					Gc = popt[0]*1e3
+					Tc = popt[1]
+					beta = popt[2]
+					rnti = rnti
+					Psat308 = psatlist_gg[3]
+					#pl.plot(xdata, GTcModel(xdata, *popt), 'g--',label='fit: Gc=%5.3f, Tc=%5.3f, beta=%5.3f' %(Gc, Tc, beta))
+					pl.plot(xdata, GTcModel(xdata, *popt), 'g--')
+
+				else:
+					popt, pcov = curve_fit(GTcModel2, templist_gg, psatlist_gg)
+					Gc = popt[0]*1e3
+					Tc = popt[1]
+					beta = 2
+					rnti = rnti
+					Psat308 = psatlist_gg[3]
+					#pl.plot(xdata, GTcModel(xdata, *popt), 'g--',label='fit: Gc=%5.3f, Tc=%5.3f, beta=%5.3f' %(Gc, Tc, beta))
+					pl.plot(xdata, GTcModel2(xdata, *popt), 'g--')
+
+				pl.text(0.61,0.95,'Gc='+str(round(Gc,1))+' pW/K',transform=ax.transAxes, fontsize=14)
+				pl.text(0.61,0.9,'Tc='+str(round(Tc))+' mK',transform=ax.transAxes, fontsize=14)
+				pl.text(0.61,0.85,'beta='+str(round(beta,2)),transform=ax.transAxes, fontsize=14)
+				pl.text(0.61,0.8,'RnTi='+str(round(rnti))+' mOhm',transform=ax.transAxes, fontsize=14)
+				pl.text(0.61,0.75,'Psat308='+str(round(Psat308,1))+' pW',transform=ax.transAxes, fontsize=14)
+
 			except:
-				# popt = np.array([-1,-1,-1])
-				# pcov = np.array([-1,-1,-1])
-				# pass
-				#
-				# #pl.xlim(200,510)
-				# #pl.ylim(0,6)
-				# pl.ylabel('P [pW]', fontsize=15)
-				# pl.xlabel('T [mK]', fontsize=15)
-				# plt.tick_params(labelsize=14)
-				# plt.grid()
 				Gc = -1
 				Tc = -1
 				beta = -1
 				rnti = -1
 				Psat308 = -1
 
-			##print('G:', Gc)
-				#if popt[0]>0 and popt[1]>0 and popt[1]<550:
-				try:
-					pl.text(0.5,0.9,'Gc='+str(round(popt[0]*1e3,1))+' pW/K',transform=ax.transAxes, fontsize=14)
-					#print("Gc Try good")
-					pl.text(0.5,0.85,'Tc='+str(round(popt[1]))+' mK',transform=ax.transAxes, fontsize=14)
-					#print("Tc Try good")
-					pl.text(0.5,0.80,'beta='+str(round(popt[2],2)),transform=ax.transAxes, fontsize=14)
-					#print("Beta Try good")
-					pl.text(0.5,0.75,'RnTi='+str(round(rnti))+' mOhm',transform=ax.transAxes, fontsize=14)
-					#print("RnTi Try good")
-					#pl.text(0.5,0.7,'Psat308='+str(Psat308)+' pW',transform=ax.transAxes, fontsize=14)
-					##print("Psat Try good")
-				# 	gtdata['Gc'] = popt[0]*1e3
-				# 	gtdata['Tc'] = popt[1]
-				# 	gtdata['beta'] = popt[2]
-				# 	gtdata['rnti'] = rnti
-				# 	gtdata['Psat308'] = psatlist[3]
-				# 	dinfos['mcecol'] = col
-				# 	dinfos['mcerow'] = row
-				# 	dinfos['detcol'] = detcol
-				# 	dinfos['detrow'] = detrow
-				# 	dinfos['pol'] = detpol
-				except Exception as e:
-					print(e)
 
-				#
-				# 	#print('1')
-				# 	gtdata['Gc'] = float('nan')
-				# 	gtdata['Tc'] = float('nan')
-				# 	gtdata['beta'] = float('nan')
-				# 	gtdata['rnti'] = float('nan')
-				# 	gtdata['Psat308'] = float('nan')
-				# 	dinfos['mcecol'] = float('nan')
-				# 	dinfos['mcerow'] = float('nan')
-				# 	dinfos['detcol'] = float('nan')
-				# 	dinfos['detrow'] = float('nan')
-				# 	dinfos['pol'] = float('nan')
-					# # else:
-					# 	#print('2')
-					# 	gtdata['Gc'] = float('nan')
-					# 	gtdata['Tc'] = float('nan')
-					# 	gtdata['beta'] = float('nan')
-					# 	gtdata['rnti'] = float('nan')
-					# 	gtdata['Psat308'] = float('nan')
-					# 	dinfos['mcecol'] = float('nan')
-					# 	dinfos['mcerow'] = float('nan')
-					# 	dinfos['detcol'] = float('nan')
-					# 	dinfos['detrow'] = float('nan')
-					# 	dinfos['pol'] = float('nan')
+			pl.grid()
+			pl.xlim(250, 500)
+			pl.ylim(0)
+			pl.tick_params(labelsize=14)
+			pl.xlabel('T [mK]', fontsize=15)
+			pl.ylabel('Psat [pW]', fontsize=15)
 
-			#
-			# GTdata['r'+str(row)+'c'+str(col)] = gtdata
-			# DetInfos['r'+str(row)+'c'+str(col)] = dinfos
-			# del gtdata
-			# del dinfos
+			gtdata = {'Gc': Gc, 'Tc':Tc, 'beta':beta, 'RnTi': rnti, 'Psat308':Psat308}
 
-			gtdata = {'Gc': Gc, 'Tc':Tc, 'beta':beta, 'rnti': rnti, 'Psat308':Psat308}
-
+			print('col ', col_i, ' row ', row_i)
 			print('gtdata=', gtdata)
 
-			fn = os.path.join(out_Gplot,'sk_G_row%d'%(row) + '_col%d'%col)
-			pl.suptitle('mcerow %02d mcecol %02d, detRow %02d detCol %02d Pol-%s'%(row,col,detrow,detcol,detpol), fontsize=15)
-			fnd = os.path.join(out_Gplot,'sk_G_detrow%d'%(detrow) + '_detcol%d'%detcol+'_pol%s'%detpol)
+			if fit_beta==False:
+
+				fn = os.path.join(out_Gplot,'sk_G_row%d'%(row) + '_col%d'%col)
+				pl.suptitle('mcerow %02d mcecol %02d, detRow %02d detCol %02d Pol-%s'%(row,col,detrow,detcol,detpol), fontsize=15)
+				#fnd = os.path.join(out_Gplot,'sk_G_detrow%d'%(detrow) + '_detcol%d'%detcol+'_pol%s'%detpol)
+				fnpickle = out_Gplot + Gfn +'.pkl'
+
+			else:
+
+				fn = os.path.join(out_Gplot + 'Fit_beta/', 'sk_G_row%d'%(row) + '_col%d'%col)
+				pl.suptitle('mcerow %02d mcecol %02d, detRow %02d detCol %02d Pol-%s'%(row,col,detrow,detcol,detpol), fontsize=15)
+				#fnd = os.path.join(out_Gplot + 'Fit_beta/', 'sk_G_detrow%d'%(detrow) + '_detcol%d'%detcol+'_pol%s'%detpol)
+				fnpickle = out_Gplot + 'Fit_beta/' + Gfn +'.pkl'
 
 			pl.savefig(fn)
-			pl.savefig(fnd)
+			#pl.savefig(fnd)
 			pl.close()
 
-
-
 			#shutil.copy2(os.path.realpath(__file__), out_Gplot + (os.path.realpath(__file__).split("/")[-1]).replace(".py",".txt"))
-			fnpickle = out_Gplot + Gfn +'.pkl'
 			fn=open(fnpickle,'wb')
 			pickle.dump(gtdata, fn)
 			fn.close()
-
-
-
-
-
-
-	#makes par histo
-
-	#print('G:',Gc)
-
-	#
-	# fig = plt.figure(figsize=(20,6.5), dpi=80)
-	# plt.tick_params(labelsize=18)
-	# bb= np.linspace(5, 20, 12)
-	# Gc_hist=np.asarray(Gc)[np.asarray(Gc)>0]
-	# #print('G:',Gc_hist)
-	# plt.hist(np.asarray(Gc_hist), bins=bb)  # arguments are passed to np.histogram
-	# #print(np.histogram(Gc_hist, bins=bb, density=True))
-	# plt.xlabel('pW/K', fontsize=18)
-	# plt.title("Gc_hist -"+"Mean="+str(round(np.mean(Gc_hist),3))+"pW/K", fontsize=18)
-	# fn_histo = os.path.join(out_Gplot,'Gc_histo')
-	# plt.savefig(fn_histo)
-	# #print('Gc_mean=',np.mean(np.asarray(Gc_hist)))
-	# #print('Gc_std=',np.std(np.asarray(Gc_hist)))
-	#
-	#
-	# fig = plt.figure(figsize=(20,6.5), dpi=80)
-	# plt.tick_params(labelsize=18)
-	# bb= np.linspace(480, 510, 13)
-	# Tc_hist=np.asarray(Tc)[np.asarray(Tc)>0]
-	# #Tc_hist=Tc_hist[Tc_hist<550]
-	# plt.hist(np.asarray(Tc_hist), bins=bb)  # arguments are passed to np.histogram
-	# #print(np.histogram(Tc_hist, bins=bb, density=True))
-	# plt.xlabel('mK',fontsize=18)
-	# plt.title("Tc_hist -"+" Mean="+str(round(np.mean(Tc_hist),3))+"mK", fontsize=18)
-	# fn_histo = os.path.join(out_Gplot,'Tc_histo')
-	# plt.savefig(fn_histo)
-	# #print('Tc_mean=',np.mean(np.asarray(Tc_hist)))
-	# #print('Tc_std=',np.std(np.asarray(Tc_hist)))
-	#
-	#
-	# fig = plt.figure(figsize=(20,6.5), dpi=80)
-	# plt.tick_params(labelsize=18)
-	# bb= np.linspace(1, 2.5, 10)
-	# beta=np.asarray(beta)[np.asarray(beta)>0]
-	# plt.hist(np.asarray(beta), bins=bb)  # arguments are passed to np.histogram
-	# #print(np.histogram(beta, bins=bb, density=True))
-	# plt.title("Beta_hist -"+" Mean="+str(round(np.mean(beta),3)),fontsize=18)
-	# fn_histo = os.path.join(out_Gplot,'beta_histo')
-	# plt.savefig(fn_histo)
-	#
-	# #print('beta_mean=',np.mean(np.asarray(beta)))
-	# #print('beta_std=',np.std(np.asarray(beta)))
-	#
-	#
-	# fig = plt.figure(figsize=(20,6.5), dpi=80)
-	# plt.tick_params(labelsize=18)
-	# bb= np.linspace(0, 150, 10)
-	# RnTi=np.asarray(RnTi)[np.asarray(RnTi)>0]
-	# RnTi=RnTi[np.asarray(RnTi)<500]
-	# plt.hist(np.asarray(RnTi), bins=bb)  # arguments are passed to np.histogram
-	# #print(np.histogram(RnTi, bins=bb, density=True))
-	# plt.xlabel('mOhm',fontsize=18)
-	# plt.title("RnTi -"+" Mean="+str(round(np.mean(RnTi),2))+"mOhm",fontsize=18)
-	# fn_histo = os.path.join(out_Gplot,'RnTi_histo')
-	# plt.savefig(fn_histo)
-	# #print('RnTi_mean=',np.mean(np.asarray(RnTi)))
-	# #print('RnTi_std=',np.std(np.asarray(RnTi)))
-	#
-	#
-	# fig = plt.figure(figsize=(20,6.5), dpi=80)
-	# plt.tick_params(labelsize=18)
-	# bb= np.linspace(0, 5, 15)
-	# Psat308=np.asarray(Psat308)[np.asarray(Psat308)>0]
-	# plt.hist(np.asarray(Psat308), bins=bb)  # arguments are passed to np.histogram
-	# #print(np.histogram(Psat308, bins=bb, density=True))
-	# plt.xlabel('pW',fontsize=18)
-	# plt.title("Psat308 -"+" Mean="+str(round(np.mean(Psat308),3))+"pW",fontsize=18)
-	# fn_histo = os.path.join(out_Gplot,'Psat308_histo')
-	# plt.savefig(fn_histo)
-	# #print('Psat308_mean=',np.mean(np.asarray(Psat308)))
-	# #print('Psat308_std=',np.std(np.asarray(Psat308)))
-	# plt.close()
-	#
-
 
 
 	'''
@@ -444,8 +330,6 @@ def main():
 		d[3] --> DetInfos 'r20c1': {'pol': 'A', 'mcecol': 1, 'mcerow': 20, 'detcol': 4, 'detrow': 2}
 
 	'''
-
-
 
 if __name__=='__main__':
     main()
