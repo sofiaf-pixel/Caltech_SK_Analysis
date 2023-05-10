@@ -2,6 +2,12 @@
 This repository contains a set of scripts that are commonly used during detectors modules testing at Caltech.
 
 
+
+First of all, move the data folder to the same folder as the scripts.
+- For that, just copy the full folder DATE, where DATE is the date at which you took data (yyyymmdd format), to the folder where you save this set of scripts.
+
+--------------------------------------
+
 To do load curves, PT plots, and Psat as a function of T with bolometer fit:
 
 >> Run the bash script: "./find_G_all"
@@ -15,9 +21,6 @@ Note: In "find_G_all" script, you have to change:
 
 Note: Beta parameter is by default fixed to 2.
 To fit the bolometer model with a variable value of beta, edit "sk_G_analysis.py" script with your favorite text editor and change "fit_beta" to "True" (line 28).
-
-Note: You have to move the data to the same folder as the script.
-- For that, just copy the full folder DATE, where DATE is the date at which you took data (yyyymmdd format), to the folder where you save this set of scripts.
 
 Note: The range of the load curves can be changed so that they all superpose. This corresponds to the region where detectors are superconducting.
 For that, "fitrange["rnti_low"]" and "fitrange["rnti_hgh"]" must be modified (lines 115 and 116). These values are in non-physical units.
