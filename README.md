@@ -1,7 +1,7 @@
 # Caltech_SK_Analysis
 This repository contains a set of scripts that are commonly used during detectors modules testing at Caltech.
 
-
+--------------------------------------
 
 First of all, move the data folder to the same folder as the scripts.
 - For that, just copy the full folder DATE, where DATE is the date at which you took data (yyyymmdd format), to the folder where you save this set of scripts.
